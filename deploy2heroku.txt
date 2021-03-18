@@ -7,3 +7,5 @@ deploying bot
 * after deploying to heroku. open heroku cli and run 
 "heroku ps:scale worker=1 --app <heroku project name>
 * stop worker:> "heroku ps:stop worker=1 --app <project name>
+
+* tail log> heroku logs --tail --app <project name>

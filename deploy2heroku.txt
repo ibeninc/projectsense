@@ -1,0 +1,8 @@
+///////////////////
+deploying bot
+//////////////
+
+*create Procfile and add "worker: python app.py"
+* create requirement.txt and runtime.txt
+* after deploying to heroku. open heroku cli and run 
+"heroku ps:scale worker=1 --app <heroku project name>

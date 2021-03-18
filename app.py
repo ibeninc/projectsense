@@ -69,15 +69,15 @@ def json_utc(user, utc=None):
 
 
 def all_reminder(update, context):
-    reply_keyboard = [["/start", "/list"]]
+    reply_keyboard = [["/start", "/list", "/time"]]
     username = str(update.message["chat"]["id"])
     with open("reminder.json") as file:
         content = json.load(file)
         reminder = content["reminder"][username]["reminder"]
         if len(reminder) == 0:
-            update.message.reply_text(f"💡 Reminder List* \nYou don't have any reminders saved!", reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True), parse_mode="markdown")
+            update.message.reply_text(f"\U0001F4C3 *Reminder List* \U0001F4C3\n\nYou don't have any reminders saved!", reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True), parse_mode="markdown")
         else:
-            update.message.reply_text("💡 Reminder List ", parse_mode="markdown")
+            update.message.reply_text("\U0001F4CB* Reminder List *\U0001F4CB", parse_mode="markdown")
             for i, v in enumerate(reminder):
                 name = v["name"]
                 date = v["date"]
@@ -85,14 +85,14 @@ def all_reminder(update, context):
                 if "opt_inf" in v.keys():
                     information = v["opt_inf"]
                     if i == len(reminder) - 1:
-                        update.message.reply_text(f"{i+1}:   Project: {name}\n      Date: {date}\n      Time: {_time}\n      Information: {information}", reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True))
+                        update.message.reply_text(f"{i+1}:   Appointment: {name}\n      Date: {date}\n      Time: {_time}\n      Information: {information}", reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True))
                     else:
-                        update.message.reply_text(f"{i+1}:   Project: {name}\n      Date: {date}\n      Time: {_time}\n      Information: {information}")
+                        update.message.reply_text(f"{i+1}:   Appointment: {name}\n      Date: {date}\n      Time: {_time}\n      Information: {information}")
                 else:
                     if i == len(reminder) - 1:
-                        update.message.reply_text(f"{i+1}:   Project: {name}\n      Date: {date}\n      Time: {_time}", reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True))
+                        update.message.reply_text(f"{i+1}:   Appointment: {name}\n      Date: {date}\n      Time: {_time}", reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True))
                     else:
-                        update.message.reply_text(f"{i+1}:   Project: {name}\n      Date: {date}\n      Time: {_time}")
+                        update.message.reply_text(f"{i+1}:   Appointment: {name}\n      Date: {date}\n      Time: {_time}")
 
 
 def utc_time(update, context):
@@ -101,7 +101,7 @@ def utc_time(update, context):
 
 
 def utc_time_selector(update, context):
-    reply_keyboard = [["/start", "/list"]]
+    reply_keyboard = [["/start", "/list", "/time"]]
     selected, num = telegramcalendar.process_utc_selection(context.bot, update)
     if selected:
         chat_id = str(update.callback_query.from_user.id)
@@ -113,20 +113,20 @@ def utc_time_selector(update, context):
 
 
 def notification(context):
-    reply_keyboard = [["/start", "/list"]]
+    reply_keyboard = [["/start", "/list", "/time"]]
     job = context.job
     if len(job.context) == 6:
          name, date, _time, username, r_id = job.context[1], job.context[2], job.context[3], job.context[4], job.context[5]
-         context.bot.send_message(job.context[0], text=f"⏰ Project Reminder: \nProject: {name}\nProject Details {date} - {_time}.", parse_mode="markdown")
+         context.bot.send_message(job.context[0], text=f"\U0001F4A1* Reminder *\U0001F4A1\n\nAppointment: {name}\nScheduled for {date} - {_time}.\nThe appointment starts in 10 minutes!", parse_mode="markdown")
     else:
         name, date, _time, username, r_id, information = job.context[1], job.context[2], job.context[3], job.context[4], job.context[5], job.context[6]
-        context.bot.send_message(job.context[0], text=f"⏰  Reminder: \nProject: {name}\nInformation: {information}\n\Project Details {date} - {_time}.", parse_mode="markdown", reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True))
+        context.bot.send_message(job.context[0], text=f"\U0001F4A1* Reminder *\U0001F4A1\n\nAppointment: {name}\nInformation: {information}\n\nScheduled for {date} - {_time}.\nThe appointment starts in 10 minutes!", parse_mode="markdown", reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True))
     json_deleter(username, r_id=r_id)
 
 
 def start(update, context):
     # print(update.message)
-    update.message.reply_text("💡 Project Reminder Setup \nEnter Project Name", parse_mode="markdown")
+    update.message.reply_text("*\U0001F4CD Reminder Setup *\U0001F4CD\n\nWhat should be the name\nof the appointment?", parse_mode="markdown")
     # update.message.reply_text(f"test", reply_markup=telegramcalendar.create_clock(), parse_mode="markdown")
     return NAME
 
@@ -139,7 +139,7 @@ def name(update, context):
     username = update.message["chat"]["id"]
     json_editor(username, "name", name)
     logger.info("Name: %s", update.message.text)
-    update.message.reply_text(f"⏰ Enter Date\nfor {name} Project",
+    update.message.reply_text(f"\U0001F4C5* Reminder Setup *\U0001F4C5\n\nWhen do you want to be\nreminded for *{name}*?",
                               reply_markup=telegramcalendar.create_calendar(), parse_mode="markdown")
     return DATE_Q
 
@@ -149,9 +149,9 @@ def inline_handler(update, context):
     if selected:
         json_editor(str(update.callback_query.from_user.id), "date", date.strftime("%d/%m/%Y"))
         context.bot.send_message(chat_id=update.callback_query.from_user.id,
-                        text="Project Date %s" % (date.strftime("%d/%m/%Y")),
+                        text="You selected %s" % (date.strftime("%d/%m/%Y")),
                         reply_markup=ReplyKeyboardRemove())
-        context.bot.send_message(chat_id=update.callback_query.from_user.id, text="Enter Reminder *time* ", parse_mode="markdown", reply_markup=telegramcalendar.create_clock(user=update.callback_query.from_user.id))
+        context.bot.send_message(chat_id=update.callback_query.from_user.id, text="\U0001F553* Reminder Setup *\U0001F553\n\nWhich *time* do you want\nto be reminded?", parse_mode="markdown", reply_markup=telegramcalendar.create_clock(user=update.callback_query.from_user.id))
         return TIME_Q
 
 
@@ -165,19 +165,22 @@ def inline_handler2(update, context):
         json_editor(chat_id, "id", r_id)
 
         context.bot.send_message(chat_id=update.callback_query.from_user.id,
-                                 text=f"Project Reminder Time: {format_time}",
+                                 text=f"You selected {format_time}",
                                  reply_markup=ReplyKeyboardRemove())
-        reply_keyboard = [["Confirm", "Cancel"]]
+        reply_keyboard = [["Yes", "No"]]
         context.bot.send_message(chat_id=update.callback_query.from_user.id,
-                                text=f"Confirm Reminder Setup",
+                                text=f"\U0001F530 *Reminder Setup* \U0001F530\n\nDo you want to add an\ninformation to the reminder?",
                                   reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True), parse_mode="markdown")
         return INFO
-       
+
+
 def info(update, context):
-    # text = update.message.text
     text = update.message.text
-    if text == "Confirm":
-        reply_keyboard = [["/start", "/list"]]
+    if text == "Yes":
+        update.message.reply_text(f"\U00002139 *Reminder Setup* \U00002139\n\nSend the additional information\nyou want to be added to your reminder!", parse_mode="markdown")
+        return OPT
+    else:
+        reply_keyboard = [["/start", "/list", "/time"]]
         chat_id = str(update.message["chat"]["id"])
         name, date, format_time, r_id = json_getter(chat_id)
         num = json_utc(chat_id)
@@ -195,47 +198,16 @@ def info(update, context):
             json_deleter(chat_id, r_id=r_id)
         else:
             context.bot.send_message(chat_id=chat_id,
-                                    text=f"⏰  Saved Reminder ⏰ n\nProject: {name}\nDate: {date}\nTime: {hour}:{minute} {m}",
-                                    parse_mode="markdown",
-                                    reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True))
+                                     text=f"*\U0001F4CC Saved Reminder *\U0001F4CC\n\nAppointment: {name}\nDate: {date}\nTime: {hour}:{minute} {m}",
+                                     parse_mode="markdown",
+                                     reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True,
+                                                                      resize_keyboard=True))
             context.job_queue.run_once(notification, seconds, context=[chat_id, name, date, format_time, chat_id, r_id], name=chat_id)
         return ConversationHandler.END
 
-    else:
-        context.bot.send_message(chat_id=chat_id, text=f"Reminder Setup Canceled", parse_mode="markdown")
-        # update.message.reply_text("Reminder Setup Canceled", parse_mode="markdown")
-    # if text == "Yes":
-    #     update.message.reply_text(f"⏰  * Project Reminder Setup* ⏰ \n\nSend the additional information\nyou want to be added to your reminder!", parse_mode="markdown")
-        # return OPT
-    # else:
-        # reply_keyboard = [["/start", "/list", "/time"]]
-        # chat_id = str(update.message["chat"]["id"])
-        # name, date, format_time, r_id = json_getter(chat_id)
-        # num = json_utc(chat_id)
-        # hour, minute, m = int(format_time.split(" ")[0].split(":")[0]), int(format_time.split(" ")[0].split(":")[1]), format_time.split(" ")[1]
-
-        # if "pm" in m:
-        #     n_hour = hour + 12
-        # else:
-        #     n_hour = hour
-
-        # seconds = datetime.timestamp(datetime.strptime(date, "%d/%m/%Y") + timedelta(hours=n_hour, minutes=minute)) - (datetime.timestamp(datetime.now()) + (num * 3600))
-        # print(seconds)
-        # if seconds < 0:
-        #     context.bot.send_message(chat_id=chat_id, text=f"\U0000274C*Reminder Error*\U0000274C\n\nThe date and time you have requested is in the past.\nPlease choose a suitable date and time!", parse_mode="markdown", reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True))
-        #     json_deleter(chat_id, r_id=r_id)
-        # else:
-        #     context.bot.send_message(chat_id=chat_id,
-        #                              text=f"*\U0001F4CC Saved Reminder *\U0001F4CC\n\nProject: {name}\nDate: {date}\nTime: {hour}:{minute} {m}",
-        #                              parse_mode="markdown",
-        #                              reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True,
-        #                                                               resize_keyboard=True))
-        #     context.job_queue.run_once(notification, seconds, context=[chat_id, name, date, format_time, chat_id, r_id], name=chat_id)
-        # return ConversationHandler.END
-
 
 def opt_info(update, context):
-    reply_keyboard = [["/start", "/list"]]
+    reply_keyboard = [["/start", "/list", "/time"]]
     information = update.message.text
     chat_id = str(update.message["chat"]["id"])
     json_editor(chat_id, "opt_inf", information)
@@ -255,7 +227,7 @@ def opt_info(update, context):
         json_deleter(chat_id, r_id=r_id)
     else:
         context.bot.send_message(chat_id=chat_id,
-                                 text=f"*\U0001F4CC Saved Reminder *\U0001F4CC\n\nProject: {name}\nDate: {date}\nTime: {hour}:{minute} {m}",
+                                 text=f"*\U0001F4CC Saved Reminder *\U0001F4CC\n\nAppointment: {name}\nDate: {date}\nTime: {hour}:{minute} {m}",
                                  parse_mode="markdown",
                                  reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True,
                                                                   resize_keyboard=True))
@@ -267,17 +239,10 @@ def cancel(update, context):
     username = str(update.message["chat"]["id"])
     logger.info("User %s canceled the reminder setup.", username)
     json_deleter(username, current=True)
-    update.message.reply_text(' *Reminder Setup*'
-                              '\n\nYou canceled Project!', reply_markup=ReplyKeyboardRemove(), parse_mode="markdown")
+    update.message.reply_text('\U0001F53A *Reminder Setup* \U0001F53A'
+                              '\n\nYou canceled the reminder!', reply_markup=ReplyKeyboardRemove(), parse_mode="markdown")
     return ConversationHandler.END
 
-def manage_text(update, context):
-    # bot.send_chat_action(chat_id=update.message.chat_id, action=ChatAction.TYPING)
-
-    update.message.reply_text("Sorry I can't understand. Type /start for new project reminder")
-
-def manage_command(update, context):
-    update.message.reply_text("Unknown command. Type /start for new project reminder")
 
 def main():
     updater = Updater("1788116137:AAG68S8mR_clhBj4MZxrysrLUDHGGMrODAY", use_context=True)
@@ -311,9 +276,6 @@ def main():
     dp.add_handler(conv_handler)
 
     dp.add_handler(conv_handler_utc)
-
-    dp.add_handler(MessageHandler(Filters.text, manage_text))
-    dp.add_handler(MessageHandler(Filters.command, manage_command))
 
     updater.start_polling()
     updater.idle()

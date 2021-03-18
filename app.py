@@ -1,285 +1,458 @@
-import logging
-import telegramcalendar
-from datetime import datetime, timedelta
-from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler, CallbackQueryHandler
-import json
-import random
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
-)
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
+import sqlite3
+from random import randint
+
+import logging
+from telegram import ChatAction, ParseMode, ForceReply
+from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageHandler, Filters
+from telegram import KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.error import NetworkError, Unauthorized
+
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-NAME, DATE_Q, TIME_Q, INFO, OPT = range(5)
-UTC_1, UTC_2 = range(2)
+# ABOUT DEVELPER
 
+def about(bot, update):
+    keyboard = [[InlineKeyboardButton("GitHub", callback_data='git'),
+                 InlineKeyboardButton("Twitter", callback_data='twitter'),
+                 InlineKeyboardButton("Youtube", callback_data='youtube')]]
 
-def json_editor(user, key, value):
-    user = str(user)
-    with open("reminder.json", "r+") as file:
-        content = json.load(file)
-        if user not in content["reminder"].keys():
-            content["reminder"][user] = {"utc": 0, "reminder": []}
-        if key == "name":
-            content["reminder"][user]["reminder"].insert(0, {})
-        content["reminder"][user]["reminder"][0][key] = value
-        file.seek(0)
-        json.dump(content, file)
-        file.truncate()
+    reply_markup = InlineKeyboardMarkup(keyboard)
 
+    update.message.reply_text('📌 Developed by @J4NN0.\n', reply_markup=reply_markup)
 
-def json_getter(user, ):
-    with open("reminder.json") as file:
-        content = json.load(file)
-        element = content["reminder"][user]["reminder"][0]
-        name = element["name"]
-        date = element["date"]
-        _time = element["time"]
-        r_id = element["id"]
-        return name, date, _time, r_id
+def call_back(bot, update):
+    query = update.callback_query
 
+    if format(query.data) == 'git':
+        bot.edit_message_text(text="https://github.com/J4NN0",
+                              chat_id=query.message.chat_id,
+                              message_id=query.message.message_id)
 
-def json_deleter(user, r_id=None, current=False):
-    with open("reminder.json", "r+") as file:
-        content = json.load(file)
-        reminder = content["reminder"][user]["reminder"]
-        if not current:
-            for i in range(len(reminder)):
-                if reminder[i]["id"] == r_id:
-                    del reminder[i]
-                    break
-        else:
-            del reminder[0]
-        file.seek(0)
-        json.dump(content, file)
-        file.truncate()
+    if format(query.data) == 'twitter':
+        bot.edit_message_text(text="https://twitter.com/giannofederico",
+                              chat_id=query.message.chat_id,
+                              message_id=query.message.message_id)
 
+    if format(query.data) == 'youtube':
+        bot.edit_message_text(text="https://www.youtube.com/channel/UC_lI0Z3CnnWLKCZkOR8Z1oQ",
+                              chat_id=query.message.chat_id,
+                              message_id=query.message.message_id)
 
-def json_utc(user, utc=None):
-    with open("reminder.json", "r+") as file:
-        content = json.load(file)
-        if utc is None:
-            return content["reminder"][user]["utc"]
-        else:
-            content["reminder"][user]["utc"] = utc
-            file.seek(0)
-            json.dump(content, file)
-            file.truncate()
+# ABOUT DEVELOPER
 
+# SQL REMINDERS
 
-def all_reminder(update, context):
-    reply_keyboard = [["/start", "/list", "/time"]]
-    username = str(update.message["chat"]["id"])
-    with open("reminder.json") as file:
-        content = json.load(file)
-        reminder = content["reminder"][username]["reminder"]
-        if len(reminder) == 0:
-            update.message.reply_text(f"\U0001F4C3 *Reminder List* \U0001F4C3\n\nYou don't have any reminders saved!", reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True), parse_mode="markdown")
-        else:
-            update.message.reply_text("\U0001F4CB* Reminder List *\U0001F4CB", parse_mode="markdown")
-            for i, v in enumerate(reminder):
-                name = v["name"]
-                date = v["date"]
-                _time = v["time"]
-                if "opt_inf" in v.keys():
-                    information = v["opt_inf"]
-                    if i == len(reminder) - 1:
-                        update.message.reply_text(f"{i+1}:   Appointment: {name}\n      Date: {date}\n      Time: {_time}\n      Information: {information}", reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True))
-                    else:
-                        update.message.reply_text(f"{i+1}:   Appointment: {name}\n      Date: {date}\n      Time: {_time}\n      Information: {information}")
-                else:
-                    if i == len(reminder) - 1:
-                        update.message.reply_text(f"{i+1}:   Appointment: {name}\n      Date: {date}\n      Time: {_time}", reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True))
-                    else:
-                        update.message.reply_text(f"{i+1}:   Appointment: {name}\n      Date: {date}\n      Time: {_time}")
+def addtolist(bot, update):
+    bot.send_chat_action(chat_id=update.message.chat_id, action=ChatAction.TYPING)
 
+    strings = update.message.text.lower().split()
 
-def utc_time(update, context):
-    update.message.reply_text("Choose the timezone you live in!", reply_markup=telegramcalendar.create_timezone())
-    return UTC_1
+    if len(strings) >= 2:
+        strings.remove('/addtolist')
 
+        # Connecting to the SQL database
+        conn = sqlite3.connect('database/list.db')
+        c = conn.cursor()
 
-def utc_time_selector(update, context):
-    reply_keyboard = [["/start", "/list", "/time"]]
-    selected, num = telegramcalendar.process_utc_selection(context.bot, update)
-    if selected:
-        chat_id = str(update.callback_query.from_user.id)
-        json_utc(chat_id, utc=num)
-        context.bot.send_message(chat_id=update.callback_query.from_user.id,
-                        text=f"You selected UTC + {num}" if num >= 0 else f"You selected UTC - {abs(num)}",
-                        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True))
-        return ConversationHandler.END
+        chat_id = update.message.chat_id
+        chat_id = str(chat_id)
+        username = update.message.from_user.username
 
+        for s in strings:
+            c.execute("INSERT INTO REMINDERS VALUES('" + chat_id + "','" + s + "','" + username + "')")
 
-def notification(context):
-    reply_keyboard = [["/start", "/list", "/time"]]
-    job = context.job
-    if len(job.context) == 6:
-         name, date, _time, username, r_id = job.context[1], job.context[2], job.context[3], job.context[4], job.context[5]
-         context.bot.send_message(job.context[0], text=f"\U0001F4A1* Reminder *\U0001F4A1\n\nAppointment: {name}\nScheduled for {date} - {_time}.\nThe appointment starts in 10 minutes!", parse_mode="markdown")
+        conn.commit()
+        conn.close()
+
+        update.message.reply_text("All items are added to your list")
     else:
-        name, date, _time, username, r_id, information = job.context[1], job.context[2], job.context[3], job.context[4], job.context[5], job.context[6]
-        context.bot.send_message(job.context[0], text=f"\U0001F4A1* Reminder *\U0001F4A1\n\nAppointment: {name}\nInformation: {information}\n\nScheduled for {date} - {_time}.\nThe appointment starts in 10 minutes!", parse_mode="markdown", reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True))
-    json_deleter(username, r_id=r_id)
+        update.message.reply_text("Syntax error. Press /help for more info")
 
+def rmfromlist(bot, update):
+    bot.send_chat_action(chat_id=update.message.chat_id, action=ChatAction.TYPING)
 
-def start(update, context):
-    # print(update.message)
-    update.message.reply_text("*\U0001F4CD Reminder Setup *\U0001F4CD\n\nWhat should be the name\nof the appointment?", parse_mode="markdown")
-    # update.message.reply_text(f"test", reply_markup=telegramcalendar.create_clock(), parse_mode="markdown")
-    return NAME
+    strings = update.message.text.lower().split()
 
+    if len(strings) >= 2:
+        strings.remove('/rmfromlist')
 
-def name(update, context):
-    name = update.message.text
-    if name == "/cancel":
-        cancel(update, context)
-        return ConversationHandler.END
-    username = update.message["chat"]["id"]
-    json_editor(username, "name", name)
-    logger.info("Name: %s", update.message.text)
-    update.message.reply_text(f"\U0001F4C5* Reminder Setup *\U0001F4C5\n\nWhen do you want to be\nreminded for *{name}*?",
-                              reply_markup=telegramcalendar.create_calendar(), parse_mode="markdown")
-    return DATE_Q
+        # Connecting to the SQL database
+        conn = sqlite3.connect('database/list.db')
+        c = conn.cursor()
 
+        chat_id = update.message.chat_id
+        chat_id = str(chat_id)
 
-def inline_handler(update, context):
-    selected, date = telegramcalendar.process_calendar_selection(context.bot, update)
-    if selected:
-        json_editor(str(update.callback_query.from_user.id), "date", date.strftime("%d/%m/%Y"))
-        context.bot.send_message(chat_id=update.callback_query.from_user.id,
-                        text="You selected %s" % (date.strftime("%d/%m/%Y")),
-                        reply_markup=ReplyKeyboardRemove())
-        context.bot.send_message(chat_id=update.callback_query.from_user.id, text="\U0001F553* Reminder Setup *\U0001F553\n\nWhich *time* do you want\nto be reminded?", parse_mode="markdown", reply_markup=telegramcalendar.create_clock(user=update.callback_query.from_user.id))
-        return TIME_Q
+        report = "❗Report\n✔️ Items successfully deleted from your list:\n"
+        err = "\n✖️No items named:\n"
 
+        for s in strings:
+            rc = c.execute("DELETE FROM REMINDERS WHERE CHATID='"+chat_id+"' AND ITEM='"+s+"'").rowcount
+            if rc <= 0:
+                err += s + "\n"
+            else:
+                report += s + "\n"
 
-def inline_handler2(update, context):
-    selected, _time = telegramcalendar.process_clock_selection(context.bot, update)
-    if selected:
-        chat_id = str(update.callback_query.from_user.id)
-        r_id = random.randint(0, 100000)
-        format_time = f"{_time[0]}:{_time[1]} {_time[2]}"
-        json_editor(chat_id, "time", format_time)
-        json_editor(chat_id, "id", r_id)
+        conn.commit()
+        conn.close()
 
-        context.bot.send_message(chat_id=update.callback_query.from_user.id,
-                                 text=f"You selected {format_time}",
-                                 reply_markup=ReplyKeyboardRemove())
-        reply_keyboard = [["Yes", "No"]]
-        context.bot.send_message(chat_id=update.callback_query.from_user.id,
-                                text=f"\U0001F530 *Reminder Setup* \U0001F530\n\nDo you want to add an\ninformation to the reminder?",
-                                  reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True), parse_mode="markdown")
-        return INFO
-
-
-def info(update, context):
-    text = update.message.text
-    if text == "Yes":
-        update.message.reply_text(f"\U00002139 *Reminder Setup* \U00002139\n\nSend the additional information\nyou want to be added to your reminder!", parse_mode="markdown")
-        return OPT
+        update.message.reply_text(report + err)
     else:
-        reply_keyboard = [["/start", "/list", "/time"]]
-        chat_id = str(update.message["chat"]["id"])
-        name, date, format_time, r_id = json_getter(chat_id)
-        num = json_utc(chat_id)
-        hour, minute, m = int(format_time.split(" ")[0].split(":")[0]), int(format_time.split(" ")[0].split(":")[1]), format_time.split(" ")[1]
+        update.message.reply_text("Syntax error. Press /help for more info")
 
-        if "pm" in m:
-            n_hour = hour + 12
+def show_list(bot, update):
+    bot.send_chat_action(chat_id=update.message.chat_id, action=ChatAction.TYPING)
+
+    # Connecting to the SQL database
+    conn = sqlite3.connect('database/list.db')
+    c = conn.cursor()
+
+    chat_id = update.message.chat_id
+    chat_id = str(chat_id)
+
+    c.execute("SELECT ITEM FROM REMINDERS WHERE CHATID='" + chat_id + "'")
+    rows = c.fetchall()
+    conn.close()
+    if len(rows) > 0:
+        items = ""
+        for row in rows:
+            items += row[0] + "\n"
+
+        username = update.message.from_user.username
+        update.message.reply_text("📄 " + username + "'s list:\n" + items)
+    else:
+        update.message.reply_text("No items in your list")
+
+def clear_list(bot, update):
+    bot.send_chat_action(chat_id=update.message.chat_id, action=ChatAction.TYPING)
+
+    # Connecting to the SQL database
+    conn = sqlite3.connect('database/list.db')
+    c = conn.cursor()
+
+    chat_id = update.message.chat_id
+    chat_id = str(chat_id)
+
+    if c.execute("DELETE FROM REMINDERS WHERE CHATID='" + chat_id + "'").rowcount > 0:
+        conn.commit()
+        update.message.reply_text("List delete successfully")
+    else:
+        update.message.reply_text("Nothing to delete")
+
+    conn.close()
+
+# SQL REMINDERS
+
+# SQL STRANGERS
+
+def topic(bot, update):
+    bot.send_chat_action(chat_id=update.message.chat_id, action=ChatAction.TYPING)
+
+    # Connecting to the SQL database
+    conn = sqlite3.connect('database/strangers.db')
+    c = conn.cursor()
+
+    c.execute("SELECT DISTINCT(TOPIC), COUNT(MSG) FROM MESSAGES")
+    rows = c.fetchall()
+    conn.close()
+
+    msg = "📫 Topic:\n"
+    i = 0
+    if rows[0][1] > 0:
+        for row in rows:
+            i = i+1
+            idt = str(i)
+            tot = str(row[1])
+            msg += idt + ". " + row[0] + " with " + tot + " total messages\n"
+        update.message.reply_text(msg)
+    else:
+        update.message.reply_text("There is no topic")
+
+def stranger_msg(bot, update):
+    bot.send_chat_action(chat_id=update.message.chat_id, action=ChatAction.TYPING)
+
+    strings = update.message.text.lower().split()
+
+    if len(strings) >= 3:
+        if strings[1] == "-user":
+            username = update.message.from_user.username
+            topic = strings[2]
+            strings[2] = "" #removing topic
+            strings.remove('-user')
         else:
-            n_hour = hour
+            username = "null"
+            topic = strings[1]
+            strings[1] = "" #removing topic
 
-        seconds = datetime.timestamp(datetime.strptime(date, "%d/%m/%Y") + timedelta(hours=n_hour, minutes=minute)) - (datetime.timestamp(datetime.now()) + (num * 3600))
-        print(seconds)
-        if seconds < 0:
-            context.bot.send_message(chat_id=chat_id, text=f"\U0000274C*Reminder Error*\U0000274C\n\nThe date and time you have requested is in the past.\nPlease choose a suitable date and time!", parse_mode="markdown", reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True))
-            json_deleter(chat_id, r_id=r_id)
+        strings.remove('/msg')
+        msg = ""
+        for s in strings: #reconstructing the message (splitted before)
+            msg += s + " "
+
+        # Connecting to the SQL database
+        conn = sqlite3.connect('database/strangers.db')
+        c = conn.cursor()
+
+        chat_id = update.message.chat_id
+        chat_id = str(chat_id)
+
+        c.execute("SELECT CHATID FROM MESSAGES WHERE CHATID='" + chat_id + "' AND TOPIC='" + topic + "'")
+        rows = c.fetchall()
+        if len(rows) > 0:
+            update.message.reply_text("You have just one message about this topic")
         else:
-            context.bot.send_message(chat_id=chat_id,
-                                     text=f"*\U0001F4CC Saved Reminder *\U0001F4CC\n\nAppointment: {name}\nDate: {date}\nTime: {hour}:{minute} {m}",
-                                     parse_mode="markdown",
-                                     reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True,
-                                                                      resize_keyboard=True))
-            context.job_queue.run_once(notification, seconds, context=[chat_id, name, date, format_time, chat_id, r_id], name=chat_id)
-        return ConversationHandler.END
+            c.execute("INSERT INTO MESSAGES VALUES('" + chat_id + "','" + username + "','" + topic + "','" + msg + "')")
+            conn.commit()
+            update.message.reply_text("Message about " + topic + " inserted correctly")
 
-
-def opt_info(update, context):
-    reply_keyboard = [["/start", "/list", "/time"]]
-    information = update.message.text
-    chat_id = str(update.message["chat"]["id"])
-    json_editor(chat_id, "opt_inf", information)
-    name, date, format_time, r_id = json_getter(chat_id)
-    num = json_utc(chat_id)
-    hour, minute, m = int(format_time.split(" ")[0].split(":")[0]), int(format_time.split(" ")[0].split(":")[1]), format_time.split(" ")[1]
-
-    if "pm" in m:
-        n_hour = hour + 12
+        conn.close()
     else:
-        n_hour = hour
+        update.message.reply_text("Syntax error. Press /help for more info")
 
-    seconds = datetime.timestamp(datetime.strptime(date, "%d/%m/%Y") + timedelta(hours=n_hour, minutes=minute)) - (datetime.timestamp(datetime.now()) + (num * 3600))
-    print(seconds)
-    if seconds < 0:
-        context.bot.send_message(chat_id=chat_id, text=f"\U0000274C*Reminder Error*\U0000274C\n\nThe date and time you have requested is in the past.\nPlease choose a suitable date and time!", parse_mode="markdown", reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True))
-        json_deleter(chat_id, r_id=r_id)
+def show_msg(bot, update):
+    bot.send_chat_action(chat_id=update.message.chat_id, action=ChatAction.TYPING)
+
+    strings = update.message.text.lower().split()
+
+    if len(strings) == 2:
+        topic = strings[1]
+
+        # Connecting to the SQL database
+        conn = sqlite3.connect('database/strangers.db')
+        c = conn.cursor()
+
+        c.execute("SELECT MSG, USERNAME FROM MESSAGES WHERE TOPIC='" + topic + "'")
+        rows = c.fetchall()
+        conn.close()
+        if len(rows) > 0:
+            for row in rows:
+                update.message.reply_text("📩 Message from: " + row[1] + "\n" + row[0] + "\n")
+        else:
+            update.message.reply_text("📪 No messages for this topic")
     else:
-        context.bot.send_message(chat_id=chat_id,
-                                 text=f"*\U0001F4CC Saved Reminder *\U0001F4CC\n\nAppointment: {name}\nDate: {date}\nTime: {hour}:{minute} {m}",
-                                 parse_mode="markdown",
-                                 reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True,
-                                                                  resize_keyboard=True))
-        context.job_queue.run_once(notification, seconds, context=[chat_id, name, date, format_time, chat_id, r_id, information], name=chat_id)
-    return ConversationHandler.END
+        update.message.reply_text("Syntax error. Press /help for more info")
 
+def del_stranger_msg(bot, update):
+    bot.send_chat_action(chat_id=update.message.chat_id, action=ChatAction.TYPING)
 
-def cancel(update, context):
-    username = str(update.message["chat"]["id"])
-    logger.info("User %s canceled the reminder setup.", username)
-    json_deleter(username, current=True)
-    update.message.reply_text('\U0001F53A *Reminder Setup* \U0001F53A'
-                              '\n\nYou canceled the reminder!', reply_markup=ReplyKeyboardRemove(), parse_mode="markdown")
-    return ConversationHandler.END
+    strings = update.message.text.lower().split()
 
+    if len(strings) == 2:
+        topic = strings[1]
+
+        # Connecting to the SQL database
+        conn = sqlite3.connect('database/strangers.db')
+        c = conn.cursor()
+
+        chat_id = update.message.chat_id
+        chat_id = str(chat_id)
+
+        if c.execute("DELETE FROM MESSAGES WHERE CHATID='" + chat_id + "' AND TOPIC='" + topic + "'").rowcount > 0:
+            conn.commit()
+            update.message.reply_text("Message of topic '" + topic + "' successfully deleted")
+        else:
+            update.message.reply_text("You have no message about topic '" + topic)
+
+        conn.close()
+    else:
+        update.message.reply_text("Syntax error. Press /help for more info")
+
+def tag_msg(bot, update):
+    bot.send_chat_action(chat_id=update.message.chat_id, action=ChatAction.TYPING)
+
+    # Connecting to the SQL database
+    conn = sqlite3.connect('database/strangers.db')
+    c = conn.cursor()
+
+    c.execute("SELECT TOPIC, MSG FROM MESSAGES")
+    rows = c.fetchall()
+    conn.close()
+
+    cit = 0
+    username = update.message.from_user.username
+    username = "@" + username
+    for row in rows:
+        if username in row[0]:
+            cit = 1
+            update.message.reply_text("📬 You have been cited in topic '" + row[0] + "'\nMessage: " + row[1])
+        if username in row[1]:
+            cit = 1
+            update.message.reply_text("✉️ You have been cited in a message:\n''" + row[1] + "''\nFrom topic: '" + row[0] + "'")
+
+    if cit == 0:
+        update.message.reply_text("📭 No topic citation\n📥 No messages citation\nNo one cited you 😢")
+
+def personal_msg(bot, update):
+    bot.send_chat_action(chat_id=update.message.chat_id, action=ChatAction.TYPING)
+
+    username = update.message.from_user.username
+
+    # Connecting to the SQL database
+    conn = sqlite3.connect('database/strangers.db')
+    c = conn.cursor()
+    c.execute("SELECT MSG, TOPIC FROM MESSAGES WHERE USERNAME='" + username + "'")
+    rows = c.fetchall()
+    conn.close()
+
+    if len(rows) > 0:
+        for row in rows:
+                update.message.reply_text("Topic: " + row[1] + "\nMessage: " + row[0] + "\n")
+    else:
+        update.message.reply_text("You do not have any messages yet")
+
+# SQL STRANGERS
+
+# ALARM
+
+def set_timer(bot, update, args, job_queue, chat_data):
+    bot.send_chat_action(chat_id=update.message.chat_id, action=ChatAction.TYPING)
+
+    """Add a job to the queue."""
+    chat_id = update.message.chat_id
+    try:
+        # args[0] should contain the time for the timer in seconds
+        due = int(args[0])
+        if due < 0:
+            update.message.reply_text('Sorry we can not go back to future!')
+            return
+
+        # Add job to queue
+        job = job_queue.run_once(alarm, due, context=chat_id)
+        chat_data['job'] = job
+
+        update.message.reply_text('Timer successfully set!')
+
+    except (IndexError, ValueError):
+        update.message.reply_text('Usage: /set <seconds>')
+
+def unset(bot, update, chat_data):
+    bot.send_chat_action(chat_id=update.message.chat_id, action=ChatAction.TYPING)
+
+    """Remove the job if the user changed their mind."""
+    if 'job' not in chat_data:
+        update.message.reply_text('You have no active timer')
+        return
+
+    job = chat_data['job']
+    job.schedule_removal()
+    del chat_data['job']
+
+    update.message.reply_text('Timer successfully unset!')
+
+def alarm(bot, job):
+    """Send the alarm message."""
+    bot.send_message(job.context, text='Beep!')
+
+# ALARM
+
+# RANDOM
+
+def random_var(bot, update):
+    bot.send_chat_action(chat_id=update.message.chat_id, action=ChatAction.TYPING)
+
+    cmd = update.message.text.lower().split()
+
+    if len(cmd) == 2:
+        max_range = int(cmd[1])
+        r = randint(0, max_range)
+        r = str(r)
+        update.message.reply_text("Random value is: " + r)
+    else:
+        update.message.reply_text("Syntax error. Press /help for more info")
+
+# RANDOM
+
+# EASTER EGGS
+# ...
+# ...
+# EASTER EGGS
+
+def manage_text(bot, update):
+    bot.send_chat_action(chat_id=update.message.chat_id, action=ChatAction.TYPING)
+
+    update.message.reply_text("Sorry I can't understand. Press /help for more info")
+
+def manage_command(bot, update):
+    update.message.reply_text("Unknown command. Press /help for more info")
+
+def start(bot, update):
+    update.message.reply_text("Hi " + update.message.from_user.first_name + " press /help for more info")
+
+def help(bot, update):
+    update.message.reply_text("⭕️ /about: info about developer\n"
+                              "\n📝 LIST 📝\n"
+                              "/addtolist <items>: to add items to the list\n"
+                              "/rmfromlist <items>: to remove items from the list\n"
+                              "/show_list: to see all items\n"
+                              "/clear_list: to reset the list\n"
+                              "\n❓STRANGER'S MESSAGE❓\n"
+                              "/topic: to see topic with messages\n"
+                              "/msg [-user] <topic> <text>: to send a message that everyone can read;\n"
+                                    "-user is optional, if inserted your username will be showed with the message\n"
+                              "/showmsg <topic>: to see message about that topic\n"
+                              "/delmsg <topic>: to delete your message\n"
+                              "/tagmsg: to check if someone tag you in a topic or message (at username)\n"
+                              "/personalmsg: to see all messages you sent\n"
+                              "\n🔀 RANDOM 🔀\n"
+                              "/random <number>: will return a random number in range(0, number)\n"
+                              "\n⏰ ALARM ⏰ \n"
+                              "/set <seconds>: to set alarm\n"
+                              "/unset: to unset alarm\n")
+
+def error(bot, update, error):
+    # Log Errors caused by Updates.
+    logger.warning('Error: "%s" caused error "%s"', update, error)
 
 def main():
-    updater = Updater("1788116137:AAG68S8mR_clhBj4MZxrysrLUDHGGMrODAY", use_context=True)
+    # Create the Updater
+    updater = Updater("1788116137:AAG68S8mR_clhBj4MZxrysrLUDHGGMrODAY")
 
+    # Get the dispatcher to register handlers
     dp = updater.dispatcher
 
-    all_reminder_handler = CommandHandler("list", all_reminder)
+    # On different commands
+    dp.add_handler(CommandHandler('start', start))
+    dp.add_handler(CommandHandler('help', help))
+    dp.add_handler(CommandHandler('about', about))
+    dp.add_handler(CallbackQueryHandler(call_back))
 
-    conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', start)],
-        states={
-            NAME: [MessageHandler(Filters.text, name)],
-            DATE_Q: [CallbackQueryHandler(inline_handler)],
-            TIME_Q: [CallbackQueryHandler(inline_handler2)],
-            INFO: [MessageHandler(Filters.text, info)],
-            OPT: [MessageHandler(Filters.text, opt_info)],
-        },
-        fallbacks=[CommandHandler('cancel', cancel)],
-    )
+    # SQL Reminders (list.db)
+    dp.add_handler(CommandHandler('addtolist', addtolist))
+    dp.add_handler(CommandHandler('rmfromlist', rmfromlist))
+    dp.add_handler(CommandHandler('show_list', show_list))
+    dp.add_handler(CommandHandler('clear_list', clear_list))
 
-    conv_handler_utc = ConversationHandler(
-        entry_points=[CommandHandler("time", utc_time)],
-        states={
-            UTC_1: [CallbackQueryHandler(utc_time_selector)]
-        },
-        fallbacks=[CommandHandler('cancel', cancel)]
-    )
+    # SQL stranger's message (strangers.db)
+    dp.add_handler(CommandHandler('topic', topic))
+    dp.add_handler(CommandHandler('msg', stranger_msg))
+    dp.add_handler(CommandHandler('showmsg', show_msg))
+    dp.add_handler(CommandHandler('delmsg', del_stranger_msg))
+    dp.add_handler(CommandHandler('tagmsg', tag_msg))
+    dp.add_handler(CommandHandler('personalmsg', personal_msg))
 
-    dp.add_handler(all_reminder_handler)
+    # Random
+    dp.add_handler(CommandHandler('random', random_var))
 
-    dp.add_handler(conv_handler)
+    # Alarm
+    dp.add_handler(CommandHandler("set", set_timer, pass_args=True, pass_job_queue=True, pass_chat_data=True))
+    dp.add_handler(CommandHandler("unset", unset, pass_chat_data=True))
 
-    dp.add_handler(conv_handler_utc)
+    # On noncommand i.e message
+    dp.add_handler(MessageHandler(Filters.text, manage_text))
+    dp.add_handler(MessageHandler(Filters.command, manage_command))
 
+    # Log all errors
+    dp.add_error_handler(error)
+
+    # Start the Bot
     updater.start_polling()
-    updater.idle()
 
+    # Run the bot until the user presses Ctrl-C or the process receives SIGINT, SIGTERM or SIGABRT
+    updater.idle()
 
 if __name__ == '__main__':
     main()

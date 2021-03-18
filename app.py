@@ -1,8 +1,7 @@
 import logging
 
-from telegram import Update
+from telegram import Update, ChatAction, ParseMode, ForceReply
 from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackContext, Filters
-
 # Enable logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
@@ -21,13 +20,13 @@ def start(update: Update, _: CallbackContext) -> None:
 def alarm(context: CallbackContext) -> None:
     """Send the alarm message."""
     job = context.job
-    context.bot.send_message(job.context, text='Beep!')
+    context.bot.send_message(job.context, text='☕ Pinggggg! Take a break')
 
 def manage_text(update: Update, _: CallbackContext) -> None:
-    update.message.reply_text("Sorry I can't understand. Press /help for more info")
+    update.message.reply_text("Sorry I didn't understand your command. Press /help to learn more")
 
 def manage_command(update: Update, _: CallbackContext) -> None:
-    update.message.reply_text("Unknown command. Press /help for more info")
+    update.message.reply_text("Invalid Command. Press /help to learn more")
 
 def remove_job_if_exists(name: str, context: CallbackContext) -> bool:
     """Remove job with given name. Returns whether job was removed."""
@@ -68,6 +67,13 @@ def unset(update: Update, context: CallbackContext) -> None:
     text = '⏰ Timer ALert cancelled!' if job_removed else 'You have no active timer.'
     update.message.reply_text(text)
 
+def help(update: Update, _: CallbackContext) -> None:
+    update.message.reply_text("🤷 /about: About developer\n"
+                              "/set <seconds>: to set reminder\n"
+                              "/unset: to unset reminder\n")
+
+def about(update: Update, _: CallbackContext) -> None:
+    update.message.reply_text('👨‍💻 Developed by \n@rubeecoder')
 
 def main() -> None:
     """Run bot."""
@@ -82,6 +88,8 @@ def main() -> None:
     dispatcher.add_handler(CommandHandler("help", start))
     dispatcher.add_handler(CommandHandler("set", set_timer))
     dispatcher.add_handler(CommandHandler("unset", unset))
+    dispatcher.add_handler(CommandHandler('help', help))
+    dispatcher.add_handler(CommandHandler('about', about))
 
     dispatcher.add_handler(MessageHandler(Filters.text, manage_text))
     dispatcher.add_handler(MessageHandler(Filters.command, manage_command))

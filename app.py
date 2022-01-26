@@ -1,10 +1,17 @@
 import logging
 
 from telegram import Update, ChatAction, ParseMode, ForceReply
-from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackContext, Filters
+from telegram.ext import (
+    Updater,
+    CommandHandler,
+    MessageHandler,
+    CallbackContext,
+    Filters,
+)
+
 # Enable logging
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 
 logger = logging.getLogger(__name__)
@@ -14,19 +21,28 @@ logger = logging.getLogger(__name__)
 # context. Error handlers also receive the raised TelegramError object in error.
 def start(update: Update, _: CallbackContext) -> None:
     # update.message.reply_text('Hi! Use /set <seconds> to set a timer')
-    update.message.reply_text("Hello " + update.message.from_user.first_name + " Use /set <seconds> to set a timer")
+    update.message.reply_text(
+        "Hello "
+        + update.message.from_user.first_name
+        + " Use /set <seconds> to set a timer"
+    )
 
 
 def alarm(context: CallbackContext) -> None:
     """Send the alarm message."""
     job = context.job
-    context.bot.send_message(job.context, text='☕ Pinggggg! Take a break')
+    context.bot.send_message(job.context, text="☕ Pinggggg! Take a break")
+
 
 def manage_text(update: Update, _: CallbackContext) -> None:
-    update.message.reply_text("Sorry I didn't understand your command. Press /help to learn more")
+    update.message.reply_text(
+        "Sorry I didn't understand your command. Press /help to learn more"
+    )
+
 
 def manage_command(update: Update, _: CallbackContext) -> None:
     update.message.reply_text("Invalid Command. Press /help to learn more")
+
 
 def remove_job_if_exists(name: str, context: CallbackContext) -> bool:
     """Remove job with given name. Returns whether job was removed."""
@@ -45,40 +61,45 @@ def set_timer(update: Update, context: CallbackContext) -> None:
         # args[0] should contain the time for the timer in seconds
         due = int(context.args[0])
         if due < 0:
-            update.message.reply_text('Sorry we can not go back to future!')
+            update.message.reply_text("Sorry we can not go back to future!")
             return
 
         job_removed = remove_job_if_exists(str(chat_id), context)
         context.job_queue.run_once(alarm, due, context=chat_id, name=str(chat_id))
 
-        text = '⏰ Timer Alert Activated!'
+        text = "⏰ Timer Alert Activated!"
         if job_removed:
-            text += ' Old Timer was removed.'
+            text += " Old Timer was removed."
         update.message.reply_text(text)
 
     except (IndexError, ValueError):
-        update.message.reply_text('Usage: /set <seconds>')
+        update.message.reply_text("Usage: /set <seconds>")
 
 
 def unset(update: Update, context: CallbackContext) -> None:
     """Remove the job if the user changed their mind."""
     chat_id = update.message.chat_id
     job_removed = remove_job_if_exists(str(chat_id), context)
-    text = '⏰ Timer ALert cancelled!' if job_removed else 'You have no active timer.'
+    text = "⏰ Timer ALert cancelled!" if job_removed else "You have no active timer."
     update.message.reply_text(text)
 
+
 def help(update: Update, _: CallbackContext) -> None:
-    update.message.reply_text("🤷 /about: About developer\n"
-                              "/set <seconds>: to set reminder\n"
-                              "/unset: to unset reminder\n")
+    update.message.reply_text(
+        "🤷 /about: About developer\n"
+        "/set <seconds>: to set reminder\n"
+        "/unset: to unset reminder\n"
+    )
+
 
 def about(update: Update, _: CallbackContext) -> None:
-    update.message.reply_text('👨‍💻 Developed by \n@rubeecoder')
+    update.message.reply_text("👨‍💻 Developed by \n@rubeecoder")
+
 
 def main() -> None:
     """Run bot."""
     # Create the Updater and pass it your bot's token.
-    updater = Updater("1788116137:AAG68S8mR_clhBj4MZxrysrLUDHGGMrODAY")
+    updater = Updater("")
 
     # Get the dispatcher to register handlers
     dispatcher = updater.dispatcher
@@ -88,8 +109,8 @@ def main() -> None:
     dispatcher.add_handler(CommandHandler("help", start))
     dispatcher.add_handler(CommandHandler("set", set_timer))
     dispatcher.add_handler(CommandHandler("unset", unset))
-    dispatcher.add_handler(CommandHandler('help', help))
-    dispatcher.add_handler(CommandHandler('about', about))
+    dispatcher.add_handler(CommandHandler("help", help))
+    dispatcher.add_handler(CommandHandler("about", about))
 
     dispatcher.add_handler(MessageHandler(Filters.text, manage_text))
     dispatcher.add_handler(MessageHandler(Filters.command, manage_command))
@@ -103,5 +124,5 @@ def main() -> None:
     updater.idle()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
